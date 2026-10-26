@@ -1,9 +1,9 @@
 {
   "version": "0.2.0",
-  "notes": "首个公开版本",
+  "notes": "- 首个公开版本\n- 文本/语音对话、气泡、专注模式\n- 五套皮肤",
   "file": {
-    "url": "",
-    "sha256": "",
-    "size": 0
+    "url": "https://github.com/Mieksido/surfpet/releases/download/v0.2.0/pet-pack.zip",
+    "sha256": "7242367f9830ee80eaabc4cb79dde5c1c5fbfa962f100551867c992d0ffc94f9",
+    "size": 16265667
   }
 }
