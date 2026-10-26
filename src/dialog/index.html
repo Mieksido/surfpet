@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file: data:; img-src 'self' file: data:; media-src 'self' file: data: blob: http://127.0.0.1:* http://localhost:*; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:*"
+    />
+    <title>小肥鱼 · 对话</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #35303c;
+        --ink-soft: #80788b;
+        --line: rgba(190, 178, 200, 0.28);
+        --pink: #ff8fb1;
+        --pink-deep: #f5679b;
+        --blue: #6aa9ff;
+        --blue-deep: #4f8ef0;
+        --card: rgba(255, 255, 255, 0.94);
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+        color: var(--ink);
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+      .app {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 178, 204, 0.5);
+        background:
+          radial-gradient(120% 60% at 100% 0%, rgba(255, 206, 224, 0.5), transparent 60%),
+          radial-gradient(100% 50% at 0% 100%, rgba(205, 227, 255, 0.55), transparent 65%),
+          var(--card);
+        box-shadow: 0 18px 48px rgba(74, 44, 64, 0.26), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+        overflow: hidden;
+        backdrop-filter: blur(18px);
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 11px 12px 10px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.55);
+        -webkit-app-region: drag;
+        flex: 0 0 auto;
+      }
+      .avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        background: linear-gradient(160deg, #ffdbe7, #ffb3cd);
+        box-shadow: 0 2px 8px rgba(255, 143, 177, 0.35);
+        flex: 0 0 auto;
+      }
+      .who { min-width: 0; flex: 1; }
+      .name {
+        font-size: 13.5px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sub {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10.5px;
+        color: var(--ink-soft);
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #c9c2d2;
+        flex: 0 0 auto;
+      }
+      .dot.ok { background: #54c78a; box-shadow: 0 0 0 3px rgba(84, 199, 138, 0.16); }
+      .dot.bad { background: #f06a7a; box-shadow: 0 0 0 3px rgba(240, 106, 122, 0.16); }
+
+      .modes {
+        display: inline-flex;
+        padding: 2px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid var(--line);
+        -webkit-app-region: no-drag;
+        flex: 0 0 auto;
+      }
+      .mode {
+        border: none;
+        background: transparent;
+        color: var(--ink-soft);
+        font-size: 11px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        cursor: pointer;
+        line-height: 1.6;
+      }
+      .mode.on {
+        background: linear-gradient(180deg, #ffa0be, #f56b9d);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(245, 103, 155, 0.3);
+      }
+      .icon-btn {
+        width: 26px;
+        height: 26px;
+        border: none;
+        background: transparent;
+        color: var(--ink-soft);
+        font-size: 17px;
+        line-height: 1;
+        border-radius: 8px;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+        flex: 0 0 auto;
+      }
+      .icon-btn:hover { background: rgba(0, 0, 0, 0.06); color: var(--ink); }
+
+      .messages {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 14px 13px 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(160, 150, 175, 0.4) transparent;
+      }
+      .messages::-webkit-scrollbar { width: 6px; }
+      .messages::-webkit-scrollbar-thumb { background: rgba(160, 150, 175, 0.35); border-radius: 8px; }
+
+      .row { display: flex; align-items: flex-end; gap: 7px; max-width: 100%; }
+      .row.me { flex-direction: row-reverse; }
+      .mini-avatar {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        background: linear-gradient(160deg, #ffdbe7, #ffb9d0);
+        flex: 0 0 auto;
+        margin-bottom: 2px;
+      }
+      .bubble-wrap { max-width: 82%; display: flex; flex-direction: column; gap: 3px; }
+      .row.me .bubble-wrap { align-items: flex-end; }
+      .bubble {
+        padding: 8px 11px;
+        border-radius: 14px 14px 14px 5px;
+        background: #fff;
+        border: 1px solid rgba(255, 196, 216, 0.55);
+        box-shadow: 0 2px 8px rgba(120, 84, 104, 0.06);
+        font-size: 13.5px;
+        line-height: 1.62;
+        white-space: pre-wrap;
+        word-break: break-word;
+        user-select: text;
+      }
+      .row.me .bubble {
+        border-radius: 14px 14px 5px 14px;
+        background: linear-gradient(180deg, #e8f2ff, #dcebff);
+        border-color: rgba(150, 190, 255, 0.55);
+      }
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        color: var(--ink-soft);
+        padding: 0 2px;
+      }
+      .tag-proactive {
+        color: var(--pink-deep);
+        padding: 0 6px;
+        border-radius: 999px;
+        background: rgba(255, 143, 177, 0.14);
+        border: 1px solid rgba(255, 143, 177, 0.3);
+        font-size: 9.5px;
+        line-height: 1.7;
+      }
+
+      .voice-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 7px;
+        padding-top: 6px;
+        border-top: 1px dashed rgba(255, 170, 200, 0.45);
+      }
+      .voice-row.standalone { border-top: none; margin-top: 4px; padding-top: 0; }
+      .voice-play {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid rgba(255, 143, 177, 0.42);
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--pink-deep);
+        border-radius: 999px;
+        padding: 3px 10px 3px 8px;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      .voice-play:hover { background: #fff; }
+      .voice-play.playing { background: rgba(255, 143, 177, 0.16); }
+      .wave { height: 12px; display: inline-flex; align-items: flex-end; gap: 2px; }
+      .wave i { width: 2px; height: 4px; border-radius: 2px; background: currentColor; opacity: 0.75; }
+      .voice-play.playing .wave i { animation: bounce 0.9s ease-in-out infinite; }
+      .voice-play.playing .wave i:nth-child(2) { animation-delay: 0.15s; }
+      .voice-play.playing .wave i:nth-child(3) { animation-delay: 0.3s; }
+      .voice-play.playing .wave i:nth-child(4) { animation-delay: 0.45s; }
+      @keyframes bounce { 0%, 100% { height: 4px; } 50% { height: 11px; } }
+
+      .hint-line {
+        text-align: center;
+        font-size: 10.5px;
+        color: var(--ink-soft);
+        padding: 2px 18px 8px;
+        line-height: 1.6;
+        flex: 0 0 auto;
+      }
+
+      .typing {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 0 18px 8px;
+        font-size: 11px;
+        color: var(--ink-soft);
+        flex: 0 0 auto;
+      }
+      .typing .dots { display: inline-flex; gap: 3px; }
+      .typing .dots i {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--pink);
+        animation: pulse 1s infinite ease-in-out;
+      }
+      .typing .dots i:nth-child(2) { animation-delay: 0.16s; }
+      .typing .dots i:nth-child(3) { animation-delay: 0.32s; }
+      @keyframes pulse { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+
+      .banner {
+        flex: 0 0 auto;
+        margin: 0 12px 8px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        background: rgba(255, 235, 238, 0.95);
+        border: 1px solid rgba(240, 106, 122, 0.35);
+        color: #b3394a;
+        font-size: 11.5px;
+        line-height: 1.55;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .banner .spacer { flex: 1; }
+      .banner button {
+        border: 1px solid rgba(240, 106, 122, 0.4);
+        background: #fff;
+        color: #b3394a;
+        border-radius: 999px;
+        font-size: 10.5px;
+        padding: 2px 9px;
+        cursor: pointer;
+        flex: 0 0 auto;
+      }
+
+      .composer {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        padding: 9px 11px 10px;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.7);
+      }
+      textarea {
+        flex: 1;
+        min-height: 34px;
+        max-height: 110px;
+        resize: none;
+        border: 1px solid rgba(190, 178, 200, 0.4);
+        border-radius: 12px;
+        padding: 8px 10px;
+        font: inherit;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.92);
+        outline: none;
+        user-select: text;
+        -webkit-app-region: no-drag;
+      }
+      textarea:focus { border-color: rgba(255, 143, 177, 0.7); box-shadow: 0 0 0 3px rgba(255, 143, 177, 0.14); }
+      textarea::placeholder { color: #b3aabd; }
+      .send {
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #ffa0be, #f56b9d);
+        color: #fff;
+        font-size: 17px;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(245, 103, 155, 0.34);
+        -webkit-app-region: no-drag;
+      }
+      .send:hover { filter: brightness(1.04); }
+      .send:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="bar">
+        <div class="avatar">🐟</div>
+        <div class="who">
+          <div class="name" id="name">小肥鱼</div>
+          <div class="sub"><span class="dot" id="dot"></span><span id="status">连接中…</span></div>
+        </div>
+        <div class="modes" id="modes">
+          <button class="mode on" data-mode="text">文本</button>
+          <button class="mode" data-mode="voice">语音</button>
+        </div>
+        <button class="icon-btn" id="close" title="关闭">×</button>
+      </header>
+      <main class="messages" id="messages"></main>
+      <div class="typing hidden" id="typing">
+        <span class="dots"><i></i><i></i><i></i></span><span>她在想…</span>
+      </div>
+      <div class="banner hidden" id="banner">
+        <span id="bannerText"></span><span class="spacer"></span>
+        <button id="retry">重连</button>
+        <button id="dismiss">知道了</button>
+      </div>
+      <div class="hint-line" id="hint">文本对话：她的回复会出现在气泡里</div>
+      <footer class="composer">
+        <textarea id="input" rows="1" placeholder="跟她说点什么…"></textarea>
+        <button id="send" class="send" title="发送（Enter）">↑</button>
+      </footer>
+    </div>
+    <audio id="player" preload="auto"></audio>
+    <script src="./dialog.js"></script>
+  </body>
+</html>

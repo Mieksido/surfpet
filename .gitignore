@@ -1,0 +1,12 @@
+# 构建产物 / 依赖 / 运行时数据：都不进仓库
+node_modules/
+dist/
+out/
+artifacts/
+data/
+skins/
+run.pid
+debug.log
+*.log
+.DS_Store
+Thumbs.db

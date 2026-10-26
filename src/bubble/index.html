@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file: data:; img-src 'self' file: data:; media-src 'self' file: data: blob: http://127.0.0.1:* http://localhost:*; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:*"
+    />
+    <title>小肥鱼</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #3b3440;
+        --ink-soft: #7b7284;
+        --pink: #ff8fb1;
+        --pink-deep: #f5679b;
+        --line: rgba(255, 168, 198, 0.55);
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+      #root {
+        padding: 6px 6px 16px;
+        width: 100%;
+      }
+      .bubble {
+        position: relative;
+        width: 100%;
+        padding-bottom: 10px;
+        opacity: 0;
+        transform: translateY(6px) scale(0.96);
+        transform-origin: 50% 100%;
+        transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+      }
+      .bubble.in { opacity: 1; transform: translateY(0) scale(1); }
+      .bubble.out { opacity: 0; transform: translateY(4px) scale(0.97); }
+      .card {
+        position: relative;
+        max-height: 286px;
+        overflow-y: auto;
+        padding: 12px 14px 10px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #fffdfe 0%, #fff4f8 100%);
+        border: 1px solid var(--line);
+        box-shadow: 0 10px 26px rgba(96, 56, 76, 0.18), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+        color: var(--ink);
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 143, 177, 0.45) transparent;
+      }
+      .card::-webkit-scrollbar { width: 5px; }
+      .card::-webkit-scrollbar-thumb { background: rgba(255, 143, 177, 0.45); border-radius: 9px; }
+      .card::-webkit-scrollbar-track { background: transparent; }
+
+      .tail {
+        position: absolute;
+        left: 50%;
+        bottom: 3px;
+        width: 14px;
+        height: 14px;
+        margin-left: -7px;
+        background: #fff4f8;
+        border-right: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+        transform: rotate(45deg);
+        border-bottom-right-radius: 4px;
+        z-index: -1;
+      }
+
+      .who {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 5px;
+        font-size: 11px;
+        color: var(--ink-soft);
+        letter-spacing: 0.2px;
+      }
+      .fish {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: linear-gradient(160deg, #ffd7e4, #ffb3cd);
+        font-size: 11px;
+      }
+      .tag {
+        margin-left: auto;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: rgba(255, 143, 177, 0.16);
+        color: var(--pink-deep);
+        font-size: 10px;
+        border: 1px solid rgba(255, 143, 177, 0.32);
+      }
+
+      .text {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 14px;
+        line-height: 1.66;
+        color: var(--ink);
+      }
+
+      .foot {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 9px;
+      }
+      .play {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 9px 3px 7px;
+        border: 1px solid rgba(255, 143, 177, 0.4);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.75);
+        color: var(--pink-deep);
+        font-size: 11px;
+        cursor: pointer;
+        line-height: 1.6;
+      }
+      .play:hover { background: #fff; }
+      .play .icon { font-size: 10px; }
+      .play.hidden { display: none; }
+      .play.playing { background: rgba(255, 143, 177, 0.18); }
+      .cue {
+        height: 12px;
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 2px;
+      }
+      .cue i {
+        display: block;
+        width: 2px;
+        height: 4px;
+        border-radius: 2px;
+        background: currentColor;
+        opacity: 0.75;
+      }
+      .play.playing .cue i { animation: bounce 0.9s ease-in-out infinite; }
+      .play.playing .cue i:nth-child(2) { animation-delay: 0.15s; }
+      .play.playing .cue i:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes bounce { 0%, 100% { height: 4px; } 50% { height: 11px; } }
+
+      .spacer { flex: 1; }
+
+      button.reply {
+        border: none;
+        border-radius: 999px;
+        padding: 4px 12px;
+        background: linear-gradient(180deg, #ff9fbd, #f5679b);
+        color: #fff;
+        font-size: 11.5px;
+        cursor: pointer;
+        box-shadow: 0 3px 10px rgba(245, 103, 155, 0.35);
+        line-height: 1.6;
+      }
+      button.reply:hover { filter: brightness(1.04); }
+      button.reply:active { transform: translateY(1px); }
+      button.close {
+        border: none;
+        background: transparent;
+        color: var(--ink-soft);
+        font-size: 15px;
+        line-height: 1;
+        padding: 2px 3px;
+        cursor: pointer;
+        border-radius: 6px;
+      }
+      button.close:hover { color: var(--ink); background: rgba(0, 0, 0, 0.05); }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="bubble" class="bubble">
+        <div class="card">
+          <div class="who">
+            <span class="fish">🐟</span>
+            <span id="name">小肥鱼</span>
+            <span id="tag" class="tag hidden">主动来找你</span>
+          </div>
+          <div id="text" class="text"></div>
+          <div class="foot">
+            <button id="play" class="play hidden" title="播放语音">
+              <span class="icon" id="playIcon">▶</span>
+              <span class="cue"><i></i><i></i><i></i></span>
+              <span id="dur"></span>
+            </button>
+            <span class="spacer"></span>
+            <button id="reply" class="reply">回复</button>
+            <button id="close" class="close" title="关掉气泡">×</button>
+          </div>
+        </div>
+        <div class="tail"></div>
+      </div>
+    </div>
+    <audio id="audio" preload="auto"></audio>
+    <script src="./bubble.js"></script>
+  </body>
+</html>

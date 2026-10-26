@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file: data:; img-src 'self' file: data:; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' data:"
+    />
+    <title>小肥鱼</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        user-select: none;
+        -webkit-user-drag: none;
+        -webkit-user-select: none;
+      }
+      canvas {
+        display: block;
+      }
+      body.preview {
+        background: radial-gradient(1200px 620px at 50% 115%, #5c81b8 0%, #35486b 42%, #1a2030 100%);
+      }
+      pre {
+        color: #fff;
+        font: 12px/1.5 ui-monospace, monospace;
+        padding: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

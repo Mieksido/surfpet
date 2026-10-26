@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>调整大小</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        font: 12px/1.5 "Microsoft YaHei", system-ui, sans-serif;
+        color: #eef2f8;
+      }
+      .card {
+        margin: 6px;
+        padding: 10px 14px 12px;
+        border-radius: 12px;
+        background: rgba(28, 34, 46, 0.92);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 6px;
+        opacity: 0.9;
+      }
+      #val {
+        color: #7fb4ff;
+        font-variant-numeric: tabular-nums;
+      }
+      input[type='range'] {
+        width: 100%;
+        accent-color: #5b8def;
+      }
+      .hint {
+        margin-top: 6px;
+        opacity: 0.45;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="row"><span>桌宠大小</span><span id="val">—</span></div>
+      <input id="r" type="range" />
+      <div class="hint">拖完自动保存 · Esc 关闭</div>
+    </div>
+    <script src="./slider.js"></script>
+  </body>
+</html>
