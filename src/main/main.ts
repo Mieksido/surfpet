@@ -434,6 +434,9 @@ function stopDrag() {
 function startDrag() {
   if (!win) return;
   stopDrag();
+  // 拖动开始时打断正在进行的贴边动画：否则两个定时器同时 setPosition，
+  // 表现就是"按住拖动时她会自己动"（2026-10-27 用户录屏反馈）。
+  if (snapTimer) { clearInterval(snapTimer); snapTimer = null; }
   const cursor = screen.getCursorScreenPoint();
   const [wx, wy] = win.getPosition();
   dragOffset = { x: cursor.x - wx, y: cursor.y - wy };

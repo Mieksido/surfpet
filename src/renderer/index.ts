@@ -85,6 +85,10 @@ async function boot() {
   window.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     if (!rig.hitTest(e.clientX, e.clientY)) return;
+    // 关键：拖动时主进程会一直移动窗口，鼠标很容易"跑到窗口外"，
+    // 那样 pointerup 就收不到 → 拖拽永远不结束（她会一直跟着鼠标"自己动"）。
+    // 捕获指针后，即使鼠标离开窗口也会把 pointerup 送回这里。
+    try { document.body.setPointerCapture(e.pointerId); } catch {}
     pressed = true;
     moved = false;
     downAt = { x: e.clientX, y: e.clientY };
@@ -92,7 +96,8 @@ async function boot() {
     downRegion = rig.regionAt(e.clientX, e.clientY);
   });
 
-  window.addEventListener('pointerup', () => {
+  window.addEventListener('pointerup', (e) => {
+    try { document.body.releasePointerCapture(e.pointerId); } catch {}
     if (!pressed) return;
     pressed = false;
     if (dragging) {
@@ -109,7 +114,8 @@ async function boot() {
     downRegion = null;
   });
 
-  window.addEventListener('pointercancel', () => {
+  window.addEventListener('pointercancel', (e) => {
+    try { document.body.releasePointerCapture(e.pointerId); } catch {}
     if (dragging) {
       dragging = false;
       rig.setDragging(false);
@@ -124,7 +130,16 @@ async function boot() {
   });
 
   // 主进程判定「指针不在她身上」时会切回穿透，这里同步收拾状态
+  const forceEndDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    pressed = false;
+    rig.setDragging(false);
+    window.pet.dragEnd();
+  };
+  window.addEventListener('blur', forceEndDrag);
   window.pet.onInputMode((interactive) => {
+    if (!interactive) forceEndDrag();
     if (interactive) return;
     setCursor('');
     strokeAccum = 0;

@@ -1,6 +1,6 @@
 {
   "name": "feiyu-pet",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "小肥鱼桌宠 — Electron + PixiJS layered desktop pet（SurfCore 对话 / 语音 / 主动搭话）",
   "main": "dist/main.js",
