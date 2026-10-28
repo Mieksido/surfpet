@@ -30,10 +30,11 @@ SurfCore 的 `remove()` 直接 `fs.rmSync(安装目录, { recursive: true })`，
 ## 验证
 
 - 插件测试 `test-pet-update.mjs` 覆盖「更新保留 data」；
-- 卸载→重装的保留链路未加自动测试（当时用户数据已丢，追加测试待补）。
+- **卸载→重装链路已补自动测试**：`test-pet-uninstall-keep.mjs`（2026-10-28）：
+  卸载后 `pet-data-keep/data` 存在且内容正确 → 重装自动恢复 → 第二次卸载备份覆盖为最新、不叠加。
 
 ## 遗留
 
 - 已删除的数据无法恢复（没有回收站）；
-- 建议补测试：`remove()` 后 `pet-data-keep/data` 存在，`install()` 后自动恢复；
+- ~~补测试~~（已完成，见上）；
 - 文档里"卸载只删 app"的说法要改（现在还会备份 data）。
