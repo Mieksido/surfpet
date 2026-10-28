@@ -96,3 +96,7 @@ SurfCore 的「检查更新」会读 `version.json` 比对版本号，然后下�
 ## 六、许可
 
 MIT。第三方素材/字体各自遵循其许可（见 `assets/` 目录内说明）。
+
+## 踩坑记录
+
+- 拖拽失效 / DPI 漂移 / 卸载丢数据等案例，见 [`docs/cases/`](docs/cases/README.md)。
