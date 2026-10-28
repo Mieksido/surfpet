@@ -449,8 +449,15 @@ function startDrag() {
   dragTimer = setInterval(() => {
     if (!win) return;
     const p = screen.getCursorScreenPoint();
-    const x = Math.round(p.x - dragOffset.x);
-    const y = Math.round(p.y - dragOffset.y);
+    let x = Math.round(p.x - dragOffset.x);
+    let y = Math.round(p.y - dragOffset.y);
+    // 钳制：至少留 60px 在屏幕里，避免拖到屏幕外找不回来（多显示器按最近的那块算）。
+    try {
+      const wa = screen.getDisplayNearestPoint({ x: Math.round(p.x), y: Math.round(p.y) }).workArea;
+      const keep = 60;
+      x = Math.min(Math.max(x, wa.x - (win.getBounds().width - keep)), wa.x + wa.width - keep);
+      y = Math.min(Math.max(y, wa.y), wa.y + wa.height - keep);
+    } catch {}
     const w = dragPin?.w ?? win.getBounds().width;
     const h = dragPin?.h ?? win.getBounds().height;
     // 一定要带 width/height：只 setPosition 在缩放屏上会被系统改尺寸。
@@ -459,12 +466,12 @@ function startDrag() {
     if (nb.width !== w || nb.height !== h) {
       try { win.setSize(w, h); } catch {}
     }
-    // 气泡跟着她走：节流到 ~60ms，避免每 8ms 改一次窗口 bounds。
+    // 气泡跟着她走：节流到 ~60ms，避免每次移动都重排。
     if (Date.now() - lastBubbleMove > 60) {
       lastBubbleMove = Date.now();
       chatHost?.onPetMoved();
     }
-  }, 8);
+  }, 16); // 60fps：8ms 高频 setBounds 在透明窗口上会闪
 }
 
 function animateTo(targetX: number, targetY: number) {
