@@ -426,24 +426,39 @@ function openSlider() {
 
 /* --------------------------------- 拖拽吸附 -------------------------------- */
 
+// 拖拽期间钉住的窗口尺寸。125%/150% DPI 下 win.setPosition() 会让窗口每帧长大 1px
+// （系统按缩放四舍五入），必须用 setBounds 显式带尺寸，否则"越拖越大、越拖越远"。
+let dragPin: { w: number; h: number } | null = null;
+
 function stopDrag() {
   if (dragTimer) clearInterval(dragTimer);
   dragTimer = null;
+  dragPin = null;
 }
 
 function startDrag() {
   if (!win) return;
-  stopDrag();
+  stopDrag(); // 会清空 dragPin，所以尺寸必须在它之后记录
   // 拖动开始时打断正在进行的贴边动画：否则两个定时器同时 setPosition，
   // 表现就是"按住拖动时她会自己动"（2026-10-27 用户录屏反馈）。
   if (snapTimer) { clearInterval(snapTimer); snapTimer = null; }
+  const bounds = win.getBounds();
+  dragPin = { w: bounds.width, h: bounds.height };
   const cursor = screen.getCursorScreenPoint();
-  const [wx, wy] = win.getPosition();
-  dragOffset = { x: cursor.x - wx, y: cursor.y - wy };
+  dragOffset = { x: cursor.x - bounds.x, y: cursor.y - bounds.y };
   dragTimer = setInterval(() => {
     if (!win) return;
     const p = screen.getCursorScreenPoint();
-    win.setPosition(Math.round(p.x - dragOffset.x), Math.round(p.y - dragOffset.y));
+    const x = Math.round(p.x - dragOffset.x);
+    const y = Math.round(p.y - dragOffset.y);
+    const w = dragPin?.w ?? win.getBounds().width;
+    const h = dragPin?.h ?? win.getBounds().height;
+    // 一定要带 width/height：只 setPosition 在缩放屏上会被系统改尺寸。
+    win.setBounds({ x, y, width: w, height: h });
+    const nb = win.getBounds();
+    if (nb.width !== w || nb.height !== h) {
+      try { win.setSize(w, h); } catch {}
+    }
     // 气泡跟着她走：节流到 ~60ms，避免每 8ms 改一次窗口 bounds。
     if (Date.now() - lastBubbleMove > 60) {
       lastBubbleMove = Date.now();
@@ -679,6 +694,14 @@ async function runSelftest() {
   if (!win) return;
   const dir = path.join(appRoot(), 'out', 'selftest');
   fs.mkdirSync(dir, { recursive: true });
+
+  // 125% DPI 下系统可能在拖拽中改窗口尺寸 → 立刻压回钉住值。
+  win.on('resize', () => {
+    if (!dragPin || !win || win.isDestroyed()) return;
+    const b = win.getBounds();
+    if (b.width === dragPin.w && b.height === dragPin.h) return;
+    try { win.setBounds({ x: b.x, y: b.y, width: dragPin.w, height: dragPin.h }); } catch {}
+  });
 
   win.setPosition(320, 240);
   await wait(1400);
@@ -925,6 +948,19 @@ async function runSelftest() {
   await wait(250);
   const dragOff = await win.webContents.executeJavaScript('window.pet.getDebugState()');
   console.log('[selftest] drag-state:', dragOn.dragging === true && dragOff.dragging === false);
+
+  // 拖拽钉尺寸：模拟"系统在拖动中把窗口改大"，看是否能自愈回钉住的值。
+  if (win) {
+    const before = win.getBounds();
+    startDrag();
+    try { win.setSize(before.width + 40, before.height + 40); } catch {}
+    await wait(120);
+    const after = win.getBounds();
+    stopDrag();
+    const sizePinned = after.width === before.width && after.height === before.height;
+    console.log('[selftest] drag-size-pin:', sizePinned, JSON.stringify({ before: `${before.width}x${before.height}`, after: `${after.width}x${after.height}` }));
+    try { win.setBounds(before); } catch {}
+  }
 
   const wa = workArea();
   const { w, h } = computeWinSize(currentScale);

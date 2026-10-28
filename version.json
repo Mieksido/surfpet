@@ -1,9 +1,9 @@
 {
-  "version": "0.2.1",
-  "notes": "- 修复：按住拖动时她会\"自己动\"（拖拽丢失 pointerup、以及贴边动画和拖动打架）\n- 拖动更跟手：窗口捕获指针，鼠标甩出窗口也能正常放开\n- 版本号 0.2.1",
+  "version": "0.2.2",
+  "notes": "- 修复 125%/150% 缩放下拖动时窗口\"越拖越大、越拖越远\"（改用 setBounds 钉住尺寸）\n- 拖拽中被系统改尺寸会自动压回\n- 自测新增 drag-size-pin 断言",
   "file": {
-    "url": "https://github.com/Mieksido/surfpet/releases/download/v0.2.1/pet-pack.zip",
-    "sha256": "c352bc48eb4838a1e13b807f470e9f9dba4779b7cef8a1d5b0323327a1f265fb",
-    "size": 16266279
+    "url": "https://github.com/Mieksido/surfpet/releases/download/v0.2.2/pet-pack.zip",
+    "sha256": "aca269c1f6006554693796d1d0ac42dacd0717200783f29f068464e224235e32",
+    "size": 16267456
   }
 }
