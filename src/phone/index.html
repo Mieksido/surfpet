@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' file: data:; img-src 'self' file: data:; media-src 'self' file: data: blob: http://127.0.0.1:* http://localhost:*; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:*"
+    />
+    <title>小肥鱼 · 电话</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #35303c;
+        --ink-soft: #80788b;
+        --pink: #ff8fb1;
+        --pink-deep: #f5679b;
+        --line: rgba(190, 178, 200, 0.28);
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        background: transparent; overflow: hidden;
+        font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+        color: var(--ink); user-select: none; -webkit-user-drag: none;
+      }
+
+      /* -------- 收起时的悬浮球 -------- */
+      /* 窗口尺寸由主进程按设置下发，球直接铺满窗口，字号由脚本算。 */
+      .ball {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 1px;
+        border-radius: 50%;
+        background: radial-gradient(120% 120% at 30% 20%, #ffe3ee, #ffb9d0 60%, #ff9dbe);
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        box-shadow: 0 6px 16px rgba(214, 108, 150, 0.38), 0 2px 0 rgba(255, 255, 255, 0.7) inset;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+        transition: transform 0.14s ease;
+        overflow: hidden;
+      }
+      .ball:hover { transform: scale(1.06); }
+      .ball .fish { line-height: 1; font-size: var(--fish-size, 24px); }
+      .ball .st {
+        font-size: var(--st-size, 8px);
+        color: #8a4d63; font-weight: 600; letter-spacing: 0.2px;
+        white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+      }
+      /* 右下角的缩放手柄 */
+      .grip {
+        position: absolute; right: 1px; bottom: 1px;
+        width: 18px; height: 18px;
+        cursor: nwse-resize;
+        -webkit-app-region: no-drag;
+        opacity: 0.55;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.9) 0 2px, transparent 2px),
+          radial-gradient(circle at 70% 70%, rgba(138, 77, 99, 0.55) 0 5px, transparent 5px);
+      }
+      .grip:hover { opacity: 1; }
+
+      .ball.listening { animation: breathe 1.6s ease-in-out infinite; }
+      .ball.speaking  { animation: pulseRing 1.1s ease-in-out infinite; }
+      .ball.thinking  { animation: spinHue 2s linear infinite; }
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); box-shadow: 0 6px 16px rgba(214, 108, 150, 0.38); }
+        50%      { transform: scale(1.06); box-shadow: 0 8px 22px rgba(214, 108, 150, 0.55), 0 0 0 8px rgba(255, 143, 177, 0.18); }
+      }
+      @keyframes pulseRing {
+        0%, 100% { box-shadow: 0 6px 16px rgba(106, 169, 255, 0.45), 0 0 0 0 rgba(106, 169, 255, 0.35); }
+        50%      { box-shadow: 0 6px 16px rgba(106, 169, 255, 0.55), 0 0 0 12px rgba(106, 169, 255, 0); }
+      }
+      @keyframes spinHue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+
+      /* -------- 展开后的面板 -------- */
+      .panel {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 178, 204, 0.55);
+        background:
+          radial-gradient(120% 60% at 100% 0%, rgba(255, 206, 224, 0.55), transparent 60%),
+          radial-gradient(100% 50% at 0% 100%, rgba(205, 227, 255, 0.6), transparent 65%),
+          rgba(255, 255, 255, 0.95);
+        box-shadow: 0 18px 48px rgba(74, 44, 64, 0.3);
+        overflow: hidden;
+        backdrop-filter: blur(18px);
+      }
+      .pbar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 10px 11px 9px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.55);
+        -webkit-app-region: drag;
+        flex: 0 0 auto;
+      }
+      .pbar .who { flex: 1; min-width: 0; }
+      .pbar .nm { font-size: 13px; font-weight: 600; }
+      .pbar .ss { font-size: 10px; color: var(--ink-soft); margin-top: 1px; }
+      .icon-btn {
+        width: 26px; height: 26px; border: none; background: transparent;
+        color: var(--ink-soft); font-size: 16px; border-radius: 8px;
+        cursor: pointer; -webkit-app-region: no-drag; flex: 0 0 auto;
+      }
+      .icon-btn:hover { background: rgba(0, 0, 0, 0.06); color: var(--ink); }
+      /* 收起按钮带文字，需要比方形图标宽 */
+      .icon-btn#fold {
+        width: auto; padding: 0 9px;
+        font-size: 11.5px; font-weight: 600;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid var(--line);
+        color: var(--pink-deep);
+        line-height: 24px;
+      }
+      .icon-btn#fold:hover { background: #fff; }
+
+      .stage {
+        flex: 1 1 auto; min-height: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 10px;
+        padding: 6px 16px;
+      }
+      .orb {
+        width: 92px; height: 92px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 34px;
+        background: linear-gradient(160deg, #ffdbe7, #ffabc8);
+        box-shadow: 0 10px 26px rgba(245, 103, 155, 0.35);
+        transition: box-shadow 0.2s, transform 0.12s;
+        transform: scale(var(--lvl, 1));
+      }
+      .orb.listening { box-shadow: 0 10px 34px rgba(245, 103, 155, 0.55), 0 0 0 10px rgba(255, 143, 177, 0.18); }
+      .orb.speaking  { box-shadow: 0 10px 34px rgba(106, 169, 255, 0.55), 0 0 0 10px rgba(106, 169, 255, 0.18); }
+      .orb.thinking  { animation: spinHue 2s linear infinite; }
+
+      .meter { width: 100%; height: 6px; border-radius: 999px; background: rgba(190, 178, 200, 0.28); overflow: hidden; }
+      .meter > i {
+        display: block; height: 100%; width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #ffb3cd, #f5679b);
+        transition: width 0.08s linear;
+      }
+      .state-txt { font-size: 11.5px; color: var(--ink-soft); text-align: center; min-height: 16px; }
+      .live-txt {
+        font-size: 12px; color: var(--ink); text-align: center;
+        max-width: 100%; line-height: 1.5; min-height: 18px; padding: 0 4px;
+        overflow: hidden; text-overflow: ellipsis;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      }
+
+      .lines {
+        flex: 0 0 auto; max-height: 34%;
+        overflow-y: auto; padding: 0 12px 6px;
+        display: flex; flex-direction: column; gap: 6px;
+        scrollbar-width: thin;
+      }
+      .lines::-webkit-scrollbar { width: 5px; }
+      .lines::-webkit-scrollbar-thumb { background: rgba(160, 150, 175, 0.35); border-radius: 8px; }
+      .ln { font-size: 11.5px; line-height: 1.5; color: var(--ink-soft); }
+      .ln.me { color: #4f7fc4; }
+      .ln.me::before { content: "你："; font-weight: 600; }
+      .ln.her::before { content: "她："; font-weight: 600; color: var(--pink-deep); }
+
+      .controls {
+        flex: 0 0 auto;
+        display: flex; align-items: center; justify-content: center; gap: 14px;
+        padding: 10px 12px 13px;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.7);
+      }
+      .cbtn {
+        border: none; cursor: pointer;
+        width: 46px; height: 46px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 19px; line-height: 1;
+        -webkit-app-region: no-drag;
+        transition: transform 0.12s ease, filter 0.12s;
+      }
+      .cbtn:hover { filter: brightness(1.05); }
+      .cbtn:active { transform: scale(0.94); }
+      .cbtn.mic { background: linear-gradient(180deg, #ffa0be, #f56b9d); color: #fff; box-shadow: 0 6px 16px rgba(245, 103, 155, 0.36); }
+      .cbtn.mic.on { background: linear-gradient(180deg, #7fd3a2, #46b97c); box-shadow: 0 6px 16px rgba(70, 185, 124, 0.4); }
+      .cbtn.mic.muted { background: #cfc7d8; color: #fff; box-shadow: none; }
+      .cbtn.end { background: linear-gradient(180deg, #ff8b8b, #e85555); color: #fff; box-shadow: 0 6px 16px rgba(232, 85, 85, 0.36); }
+      .cbtn.fold {
+        width: 38px; height: 38px; font-size: 15px;
+        background: rgba(255, 255, 255, 0.9); color: var(--ink-soft);
+        border: 1px solid var(--line);
+      }
+
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <!-- 收起态：悬浮球 -->
+    <div class="ball" id="ball" title="点击展开电话面板 · 右下角可拖拽调整大小">
+      <div class="fish">🐟</div>
+      <div class="st" id="ballState">待机</div>
+      <div class="grip" id="grip" title="拖拽调整大小"></div>
+    </div>
+
+    <!-- 展开态：电话面板 -->
+    <div class="panel hidden" id="panel">
+      <header class="pbar">
+        <div class="who">
+          <div class="nm" id="pName">小肥鱼</div>
+          <div class="ss" id="pState">电话模式 · 待机</div>
+        </div>
+        <button class="icon-btn" id="fold" title="收起为悬浮球">▾ 收起</button>
+        <button class="icon-btn" id="close" title="关闭">×</button>
+      </header>
+
+      <div class="stage">
+        <div class="orb" id="orb">🐟</div>
+        <div class="meter"><i id="meterFill"></i></div>
+        <div class="live-txt" id="live"></div>
+        <div class="state-txt" id="stateTxt">点麦克风开始说话</div>
+      </div>
+
+      <div class="lines" id="lines"></div>
+
+      <footer class="controls">
+        <button class="cbtn fold" id="autoBtn" title="自动接话：开着就免按键">自动</button>
+        <button class="cbtn mic" id="mic" title="按一下开始/停止录音">🎙</button>
+        <button class="cbtn end" id="end" title="挂断">✕</button>
+      </footer>
+    </div>
+
+    <audio id="player" preload="auto"></audio>
+    <script src="./phone.js"></script>
+  </body>
+</html>

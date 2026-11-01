@@ -26,6 +26,10 @@ export interface ChatHostDeps {
   onSpeak: (durationMs: number) => void;
   onModeChange: (mode: 'text' | 'voice') => void;
   onFocusChange?: (enabled: boolean) => void;
+  /** 电话模式使用的本地 ASR 服务地址。 */
+  asrUrl?: string;
+  /** 悬浮球尺寸变化时回调，供主进程落盘。 */
+  onBallSizeChange?: (size: number) => void;
   log: (...args: unknown[]) => void;
 }
 
@@ -33,6 +37,13 @@ const DIALOG_W = 392;
 const DIALOG_H = 576;
 const BUBBLE_W = 360;
 const BUBBLE_MIN_H = 120;
+
+/** 电话模式：展开面板的尺寸 */
+const PHONE_PANEL_RECT = { w: 320, h: 430 };
+/** 电话模式：悬浮球的默认/最小/最大直径 */
+const PHONE_BALL_DEFAULT = 56;
+const PHONE_BALL_MIN = 40;
+const PHONE_BALL_MAX = 140;
 
 function nowMs() {
   return Date.now();
@@ -43,6 +54,9 @@ export class ChatHost {
   private deps: ChatHostDeps;
   private dialog: BrowserWindow | null = null;
   private bubble: BrowserWindow | null = null;
+  private phone: BrowserWindow | null = null;
+  private phoneCollapsed = false;
+  private phoneBallSize = PHONE_BALL_DEFAULT;
   private dialogMode: 'text' | 'voice' = 'text';
   private messages: ChatMessage[] = [];
   private pending = false;
@@ -245,6 +259,195 @@ export class ChatHost {
     this.dialog = null;
   }
 
+  /* ------------------------------ 电话模式窗口 ------------------------------ */
+
+  /** 当前悬浮球应当是多大（受设置控制，钳制在允许范围内）。 */
+  private phoneBallRect(): { w: number; h: number } {
+    const size = Math.round(
+      Math.min(PHONE_BALL_MAX, Math.max(PHONE_BALL_MIN, this.phoneBallSize || PHONE_BALL_DEFAULT)),
+    );
+    return { w: size, h: size };
+  }
+
+  /**
+   * 打开电话模式。
+   *
+   * 从菜单进来永远是展开态：收起是用户主动做的动作，不应该让上次的收起状态
+   * 变成下次打开时的默认形态（那样打开就是个大球，很困惑）。
+   */
+  openPhone(): void {
+    this.pauseBubbleAudio();
+    this.phoneCollapsed = false;
+
+    if (this.phone && !this.phone.isDestroyed()) {
+      if (!this.phone.isVisible()) this.phone.show();
+      this.phone.focus();
+      if (this.phone.getBounds().width !== PHONE_PANEL_RECT.w) this.setPhoneCollapsed(false);
+      this.phone.webContents.send('chat:state', this.statePayload());
+      return;
+    }
+
+    const rect = PHONE_PANEL_RECT;
+    const win = new BrowserWindow({
+      width: rect.w,
+      height: rect.h,
+      // 不要给大的 minWidth/minHeight：窗口必须能缩到悬浮球（40px）。
+      // 之前写 200，球被撑成一个巨大的圆，就是这个原因。
+      minWidth: PHONE_BALL_MIN,
+      minHeight: PHONE_BALL_MIN,
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
+      show: false,
+      resizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      title: '小肥鱼 · 电话',
+      webPreferences: {
+        preload: this.deps.preload,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        backgroundThrottling: false,
+      },
+    });
+    this.phone = win;
+    win.setAlwaysOnTop(true, 'floating');
+    win.loadFile(path.join(this.deps.distDir, 'phone.html'));
+    win.once('ready-to-show', () => {
+      if (win.isDestroyed()) return;
+      this.positionPhone(win, false);
+      win.show();
+      win.focus();
+    });
+    win.on('closed', () => {
+      if (this.phone === win) this.phone = null;
+    });
+    win.webContents.on('did-finish-load', () => {
+      win.webContents.send('chat:state', this.statePayload());
+      win.webContents.send('phone:collapsed-state', { collapsed: false });
+    });
+  }
+
+  private positionPhone(win: BrowserWindow, collapsed: boolean): void {
+    if (!win || win.isDestroyed()) return;
+    const rect = collapsed ? this.phoneBallRect() : PHONE_PANEL_RECT;
+    const pet = this.deps.getPetWindow();
+    const anchor = pet && !pet.isDestroyed()
+      ? pet.getBounds()
+      : (() => {
+          const d = screen.getPrimaryDisplay();
+          return { x: d.workArea.x + d.workArea.width - 260, y: d.workArea.y + d.workArea.height - 260, width: 0, height: 0 };
+        })();
+    const wa = screen.getDisplayMatching({
+      x: anchor.x,
+      y: anchor.y,
+      width: anchor.width || 1,
+      height: anchor.height || 1,
+    }).workArea;
+
+    let x = Math.round(anchor.x + anchor.width - rect.w - 12);
+    let y = Math.round(anchor.y - rect.h - 10);
+    if (y < wa.y + 8) y = Math.round(anchor.y + 5);
+    x = Math.min(Math.max(x, wa.x + 8), wa.x + wa.width - rect.w - 8);
+    y = Math.min(Math.max(y, wa.y + 8), wa.y + wa.height - rect.h - 8);
+    win.setBounds({ x, y, width: rect.w, height: rect.h });
+  }
+
+  setPhoneCollapsed(collapsed: boolean): void {
+    this.phoneCollapsed = Boolean(collapsed);
+    if (!this.phone || this.phone.isDestroyed()) return;
+    const bounds = this.phone.getBounds();
+    const rect = this.phoneCollapsed ? this.phoneBallRect() : PHONE_PANEL_RECT;
+    // 以右下角为锚点收放，视觉上不会跳。
+    const x = Math.round(bounds.x + bounds.width - rect.w);
+    const y = Math.round(bounds.y + bounds.height - rect.h);
+    this.phone.setBounds({ x, y, width: rect.w, height: rect.h });
+    this.positionPhone(this.phone, this.phoneCollapsed);
+    this.phone.webContents.send('phone:collapsed-state', { collapsed: this.phoneCollapsed });
+  }
+
+  /** 改变悬浮球大小（拖动缩放手柄时调用），并记住这个值。 */
+  setPhoneBallSize(size: number): void {
+    const next = Math.round(
+      Math.min(PHONE_BALL_MAX, Math.max(PHONE_BALL_MIN, Number(size) || PHONE_BALL_DEFAULT)),
+    );
+    if (next === this.phoneBallSize) return;
+    this.phoneBallSize = next;
+    try { this.deps.onBallSizeChange?.(next); } catch { /* 落盘失败不影响窗口 */ }
+    if (this.phone && !this.phone.isDestroyed() && this.phoneCollapsed) {
+      const b = this.phone.getBounds();
+      this.phone.setBounds({ x: b.x + b.width - next, y: b.y + b.height - next, width: next, height: next });
+    }
+  }
+
+  /** 供外部（设置持久化）读取/恢复球尺寸。 */
+  get ballSize(): number {
+    return this.phoneBallSize;
+  }
+
+  closePhone(): void {
+    if (this.phone && !this.phone.isDestroyed()) this.phone.close();
+    this.phone = null;
+  }
+
+  private broadcastPhone(channel: string, payload: unknown): void {
+    if (!this.phone || this.phone.isDestroyed()) return;
+    try {
+      this.phone.webContents.send(channel, payload);
+    } catch {
+      /* 窗口刚销毁，忽略 */
+    }
+  }
+
+  /**
+   * 把录音交给本地 ASR 服务转文字。
+   *
+   * ⚠️ 调用方必须传 ogg（或 wav）。webm 会迫使服务端调 ffmpeg 转码，
+   * 而那个 ffmpeg 在 Windows 上每次都会闪一个黑色控制台窗口。
+   */
+  private async transcribeAudio(
+    arrayBuffer: ArrayBuffer,
+    format: string,
+  ): Promise<{ ok: boolean; text?: string; error?: string; elapsedMs?: number }> {
+    const asrUrl = String(this.deps.asrUrl || 'http://127.0.0.1:8766').replace(/\/+$/, '');
+    const body = Buffer.from(new Uint8Array(arrayBuffer));
+    if (!body.length) return { ok: false, error: '没录到声音' };
+
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 30_000);
+    try {
+      const res = await fetch(
+        `${asrUrl}/v1/asr?language=auto&format=${encodeURIComponent(format || 'ogg')}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/octet-stream' },
+          body,
+          signal: ctl.signal,
+        },
+      );
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        return { ok: false, error: `ASR HTTP ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ''}` };
+      }
+      const json = (await res.json()) as { text?: string; elapsed_ms?: number };
+      return { ok: true, text: String(json?.text || ''), elapsedMs: json?.elapsed_ms };
+    } catch (error) {
+      const msg = String((error as Error)?.message ?? error);
+      return {
+        ok: false,
+        error: /abort/i.test(msg)
+          ? 'ASR 超时（语音服务没起？先运行 start-voice.bat）'
+          : `连不上 ASR（${asrUrl}）：${msg}`,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private ensureBubble(): BrowserWindow {
     if (this.bubble && !this.bubble.isDestroyed()) return this.bubble;
     const win = new BrowserWindow({
@@ -378,22 +581,27 @@ export class ChatHost {
     }
     this.pending = true;
     this.broadcastDialog('chat:typing', { pending: true });
+    this.broadcastPhone('chat:typing', { pending: true });
     try {
       const result = await this.client.chat(say, mode);
       if (!result.ok || !result.reply) throw new Error(result.error || '她这次没说话');
       if (result.userMessage) this.remember(this.withAbsoluteAudio(result.userMessage));
       const reply = this.remember(this.withAbsoluteAudio(result.reply));
       this.broadcastDialog('chat:message', reply);
+      // 电话模式监听同一个通道，顺带转发过去让它念出来。
+      this.broadcastPhone('chat:message', reply);
       this.showBubble(reply);
       return { ok: true };
     } catch (error) {
       const message = String((error as Error)?.message ?? error);
       this.broadcastDialog('chat:error', { message });
+      this.broadcastPhone('chat:error', { message });
       this.deps.log('[chat] send failed:', message);
       return { ok: false, error: message };
     } finally {
       this.pending = false;
       this.broadcastDialog('chat:typing', { pending: false });
+      this.broadcastPhone('chat:typing', { pending: false });
     }
   }
 
@@ -546,6 +754,37 @@ export class ChatHost {
     });
     ipcMain.handle('chat:history', async () => this.historyPayload());
     ipcMain.on('chat:reconnect', () => this.client.reconnect());
+
+    /* ------------------------------ 电话模式 IPC ------------------------------ */
+    ipcMain.handle('phone:history', async () => {
+      const payload = await this.historyPayload();
+      this.broadcastPhone('phone:history-data', payload);
+      return payload;
+    });
+    ipcMain.handle('phone:send', async (_e, payload: { text?: string }) => {
+      // 电话模式天然是语音：她一定要念出来。
+      return this.sendChat(String(payload?.text || ''), 'voice');
+    });
+    ipcMain.handle(
+      'phone:transcribe',
+      async (_e, payload: { data?: ArrayBuffer; format?: string }) => {
+        try {
+          if (!payload?.data) return { ok: false, error: '没收到录音数据' };
+          return await this.transcribeAudio(payload.data, String(payload.format || 'ogg'));
+        } catch (error) {
+          return { ok: false, error: String((error as Error)?.message ?? error) };
+        }
+      },
+    );
+    ipcMain.on('phone:audio-start', () => this.pauseBubbleAudio());
+    ipcMain.on('phone:close', () => this.closePhone());
+    ipcMain.on('phone:collapsed', (_e, payload: { collapsed?: boolean }) => {
+      this.setPhoneCollapsed(payload?.collapsed === true);
+    });
+    ipcMain.on('phone:set-ball-size', (_e, payload: { size?: number }) => {
+      this.setPhoneBallSize(Number(payload?.size) || PHONE_BALL_DEFAULT);
+    });
+
     // 语音只允许一个窗口出声：谁先开始，另一个立刻暂停。
     ipcMain.on('chat:audio-start', () => this.pauseBubbleAudio());
     ipcMain.on('bubble:audio-start', () => {
