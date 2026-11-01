@@ -77,4 +77,33 @@ contextBridge.exposeInMainWorld('pet', {
     onHide: (cb: () => void) => on('bubble:hide', (_p: unknown) => cb()),
     onPauseAudio: (cb: () => void) => ipcRenderer.on('bubble:pause-audio', () => cb()),
   },
+
+  /* ------------------------------ 电话模式 ------------------------------ */
+  /*
+   * 独立命名空间，不与 dialog 共用通道：dialog 仍然只用 chat:*，
+   * 电话模式额外加 phone:*。以后要删掉电话模式，删这一块 + 主进程里的
+   * phone:* IPC 即可，不会碰到原有对话窗。
+   */
+  phone: {
+    history: (): Promise<ChatHistoryPayload> => ipcRenderer.invoke('phone:history'),
+    send: (text: string): Promise<{ ok: boolean; error?: string }> =>
+      ipcRenderer.invoke('phone:send', { text }),
+    transcribe: (
+      data: ArrayBuffer,
+      format: string,
+    ): Promise<{ ok: boolean; text?: string; error?: string; elapsedMs?: number }> =>
+      ipcRenderer.invoke('phone:transcribe', { data, format }),
+    audioStarted: () => ipcRenderer.send('phone:audio-start'),
+    close: () => ipcRenderer.send('phone:close'),
+    setCollapsed: (v: boolean) => ipcRenderer.send('phone:collapsed', { collapsed: Boolean(v) }),
+    setBallSize: (size: number) => ipcRenderer.send('phone:set-ball-size', { size: Number(size) || 0 }),
+
+    onState: (cb: (state: ChatStatePayload) => void) => on('chat:state', cb),
+    onHistory: (cb: (payload: ChatHistoryPayload) => void) => on('phone:history-data', cb),
+    onReply: (cb: (message: ChatMessage) => void) => on('chat:message', cb),
+    onTyping: (cb: (payload: { pending: boolean }) => void) => on('chat:typing', cb),
+    onError: (cb: (payload: { message: string }) => void) => on('chat:error', cb),
+    onCollapsed: (cb: (v: boolean) => void) =>
+      on<{ collapsed: boolean }>('phone:collapsed-state', (p) => cb(p?.collapsed === true)),
+  },
 });

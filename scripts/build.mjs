@@ -67,18 +67,27 @@ const bubbleCfg = {
   format: 'iife',
 };
 
+const phoneCfg = {
+  ...common,
+  entryPoints: [path.join(root, 'src/phone/index.ts')],
+  outfile: path.join(out, 'phone.js'),
+  platform: 'browser',
+  format: 'iife',
+};
+
 if (watch) {
   const { context } = await import('esbuild');
-  for (const cfg of [mainCfg, preloadCfg, rendererCfg, sliderCfg, dialogCfg, bubbleCfg]) {
+  for (const cfg of [mainCfg, preloadCfg, rendererCfg, sliderCfg, dialogCfg, bubbleCfg, phoneCfg]) {
     const ctx = await context(cfg);
     await ctx.watch();
   }
   console.log('[build] watching…');
 } else {
-  await Promise.all([build(mainCfg), build(preloadCfg), build(rendererCfg), build(sliderCfg), build(dialogCfg), build(bubbleCfg)]);
+  await Promise.all([build(mainCfg), build(preloadCfg), build(rendererCfg), build(sliderCfg), build(dialogCfg), build(bubbleCfg), build(phoneCfg)]);
   await copyFile(path.join(root, 'src/renderer/index.html'), path.join(out, 'index.html'));
   await copyFile(path.join(root, 'src/slider/index.html'), path.join(out, 'slider.html'));
   await copyFile(path.join(root, 'src/dialog/index.html'), path.join(out, 'dialog.html'));
   await copyFile(path.join(root, 'src/bubble/index.html'), path.join(out, 'bubble.html'));
+  await copyFile(path.join(root, 'src/phone/index.html'), path.join(out, 'phone.html'));
   console.log('[build] done → dist/');
 }

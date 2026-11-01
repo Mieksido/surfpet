@@ -81,6 +81,13 @@ if (!hasSingleInstance) {
 
 /* ---------------------------------- 设置 ---------------------------------- */
 
+/** 电话模式默认连接的本地 ASR 服务（SurfCore 语音包里的语音识别）。 */
+const DEFAULT_ASR_URL = 'http://127.0.0.1:8766';
+/** 悬浮球尺寸允许范围（px） */
+const PHONE_BALL_DEFAULT_SIZE = 56;
+const PHONE_BALL_MIN_SIZE = 40;
+const PHONE_BALL_MAX_SIZE = 140;
+
 interface Settings {
   scale: number;
   skin: string;
@@ -88,12 +95,22 @@ interface Settings {
   dialogMode?: 'text' | 'voice';
   /** 本地缓存的专注模式；连上 SurfCore 后以插件的 pet/focus.json 为准 */
   focusMode?: boolean;
+  /** 电话模式的 ASR 地址 */
+  asrUrl?: string;
+  /** 电话模式悬浮球的直径（px），用户可以拖动手柄改 */
+  phoneBallSize?: number;
 }
 
 let settings: Settings = { scale: 0.44, skin: '' };
 
 function settingsPath() {
   return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function clampBallSize(v: unknown): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return PHONE_BALL_DEFAULT_SIZE;
+  return Math.round(Math.min(PHONE_BALL_MAX_SIZE, Math.max(PHONE_BALL_MIN_SIZE, n)));
 }
 
 function loadSettings(): Settings {
@@ -105,9 +122,14 @@ function loadSettings(): Settings {
       skin: typeof raw.skin === 'string' ? raw.skin : '',
       dialogMode: raw.dialogMode === 'voice' ? 'voice' : 'text',
       focusMode: raw.focusMode === true,
+      asrUrl: typeof raw.asrUrl === 'string' && raw.asrUrl ? raw.asrUrl : DEFAULT_ASR_URL,
+      phoneBallSize: clampBallSize(raw.phoneBallSize),
     };
   } catch {
-    return { scale: 0.44, skin: '', dialogMode: 'text', focusMode: false };
+    return {
+      scale: 0.44, skin: '', dialogMode: 'text', focusMode: false,
+      asrUrl: DEFAULT_ASR_URL, phoneBallSize: PHONE_BALL_DEFAULT_SIZE,
+    };
   }
 }
 
@@ -580,11 +602,13 @@ const MENU_ACTIONS: Record<string, { label: string; run: () => void }> = {
   quit: { label: '退出', run: () => app.quit() },
 };
 
-/** 右键/托盘都放同一组对话入口：文本对话 / 语音对话（和皮肤无关，所有皮肤都能用） */
+/** 右键/托盘都放同一组对话入口（和皮肤无关，所有皮肤都能用） */
 function chatMenuItems(): MenuItemConstructorOptions[] {
   return [
     { label: '文本对话', click: () => chatHost?.openDialog('text') },
     { label: '语音对话', click: () => chatHost?.openDialog('voice') },
+    // 电话模式：说话即回复的连续对话，可收成悬浮球。
+    { label: '电话模式（语音连续对话）', click: () => chatHost?.openPhone() },
     { type: 'separator' },
   ];
 }
@@ -1048,6 +1072,12 @@ app.whenReady().then(() => {
     preload: path.join(__dirname, 'preload.js'),
     getPetWindow: () => win,
     onSpeak: (ms) => speakFor(ms),
+    // 电话模式用的本地语音识别服务；可在设置里改。
+    asrUrl: settings.asrUrl || DEFAULT_ASR_URL,
+    onBallSizeChange: (size) => {
+      settings.phoneBallSize = clampBallSize(size);
+      persistSettings();
+    },
     onModeChange: (mode) => {
       settings.dialogMode = mode;
       persistSettings();
@@ -1062,6 +1092,8 @@ app.whenReady().then(() => {
   chatHost.setInitialMode(settings.dialogMode === 'voice' ? 'voice' : 'text');
   chatHost.setInitialFocus(settings.focusMode === true);
   chatHost.registerIpc(ipcMain);
+  // 恢复上次的悬浮球大小，并在用户拖动改变后落盘。
+  chatHost.setPhoneBallSize(settings.phoneBallSize ?? PHONE_BALL_DEFAULT_SIZE);
   chatHost.start();
   createTray();
 
